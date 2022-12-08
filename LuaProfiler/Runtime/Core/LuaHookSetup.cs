@@ -888,7 +888,11 @@ coroutine.wrap = function(f)
     end
 end
 
-function miku_do_record(val, prefix, key, record, history, null_list, staticRecord)
+function miku_do_record(val, prefix, key, record, history, null_list, staticRecord, recursionDepth)
+    if recursionDepth == nil then
+        recursionDepth = 0
+    end
+
     if val == staticRecord then
         return
     end
@@ -951,6 +955,12 @@ function miku_do_record(val, prefix, key, record, history, null_list, staticReco
         prefixTb[strKey] = tmp_prefix
     end
 
+    if recursionDepth > 128 then
+        print(string.format('<color=red>[miku_do_record] recursion depth overflow</color>\nkey:%s (%s)\ntmp_prefix:%s\nval:%s (%s)\n',
+            tostring(key), type(key), tostring(tmp_prefix), tostring(val), type(val)))
+        return
+    end
+
     if null_list then
         if type(val) == 'userdata' then
             local st,ret = pcall(miku_is_null, val)
@@ -1007,10 +1017,10 @@ function miku_do_record(val, prefix, key, record, history, null_list, staticReco
             local typeVStr = type(v)
             local key = k
             if typeKStr == 'table' or typeKStr == 'userdata' or typeKStr == 'function' then
-                key = 'table:'
-                miku_do_record(k, tmp_prefix, 'table:', record, history, null_list, staticRecord)
+                key = '<TableV>'
+                miku_do_record(k, tmp_prefix, '<TableK>', record, history, null_list, staticRecord, recursionDepth + 1)
             end
-            miku_do_record(v, tmp_prefix, key, record, history, null_list, staticRecord)
+            miku_do_record(v, tmp_prefix, key, record, history, null_list, staticRecord, recursionDepth + 1)
         end
 
     elseif typeStr == 'function' then
@@ -1022,8 +1032,8 @@ function miku_do_record(val, prefix, key, record, history, null_list, staticReco
                     break
                 end
                 if v then
-                    local funPrefix = miku_get_fun_info(val)
-                    miku_do_record(v, funPrefix, k, record, history, null_list, staticRecord)
+                    local funPrefix = tmp_prefix .. '->' .. miku_get_fun_info(val)
+                    miku_do_record(v, funPrefix, k, record, history, null_list, staticRecord, recursionDepth + 1)
                 end
                 i = i + 1
             end
@@ -1032,7 +1042,7 @@ function miku_do_record(val, prefix, key, record, history, null_list, staticReco
 
     local metaTable = getmetatable(val)
     if metaTable then
-        miku_do_record(metaTable, tmp_prefix, 'metaTable', record, history, null_list, staticRecord)
+        miku_do_record(metaTable, tmp_prefix, 'metaTable', record, history, null_list, staticRecord, recursionDepth + 1)
     end
 end
 
