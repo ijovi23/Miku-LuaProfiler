@@ -1,6 +1,4 @@
-﻿#if !CSHARP_7_3_OR_NEWER
-#define NET35
-#endif
+﻿#if UNITY_EDITOR_WIN || USE_LUA_PROFILER
 
 using System;
 using System.Collections.Generic;
@@ -98,6 +96,11 @@ namespace MikuLuaProfiler
         public static void Disconnect()
         {
             isClose = true;
+        }
+
+        public static bool CheckIsConnected()
+        {
+            return tcpClient != null;
         }
 
         public static void SendCmd(PacketBase cmd)
@@ -300,3 +303,4 @@ namespace MikuLuaProfiler
         #endregion
     }
 }
+#endif

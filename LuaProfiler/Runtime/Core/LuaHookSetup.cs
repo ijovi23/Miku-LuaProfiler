@@ -37,6 +37,7 @@ __________#_______####_______####______________
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading;
 using UnityEngine;
 
 namespace MikuLuaProfiler
@@ -48,7 +49,6 @@ namespace MikuLuaProfiler
         #region field
         public static LuaDeepProfilerSetting setting { private set; get; }
 
-        private bool needShowMenu = false;
         public float showTime = 1f;
         private int count = 0;
         private float deltaTime = 0f;
@@ -74,18 +74,38 @@ namespace MikuLuaProfiler
 #if UNITY_EDITOR
             if (!Application.isPlaying) return;
 #endif
+            
             if (isInite) return;
-
+#if !UNITY_EDITOR
+            {
+                GameObject go = new GameObject();
+                go.name = "MikuLuaProfiler OpenMenu";
+                go.hideFlags = HideFlags.HideAndDontSave;
+                DontDestroyOnLoad(go);
+                go.AddComponent<OpenMenu>();
+            }
+            if (!LuaProfiler.CheckServerIsOpen())
+            {
+                return;       
+            }
+#endif
             isInite = true;
             setting = LuaDeepProfilerSetting.Instance;
             LuaProfiler.mainThreadId = System.Threading.Thread.CurrentThread.ManagedThreadId;
             
             if (setting.isDeepLuaProfiler || !setting.isLocal)
             {
+                Debug.Log("<color=#00ff00>OnStartGame</color>");
                 LuaDLL.Uninstall();
-                LuaDLL.HookLoadLibrary();
-                LuaDLL.BindEasyHook(IntPtr.Zero);
-                //LuaDLL.Install();
+                IntPtr LuaModule = LuaDLL.CheckHasLuaDLL();
+                if (LuaModule != IntPtr.Zero)
+                {
+                    LuaDLL.BindEasyHook(LuaModule);
+                }
+                else
+                {
+                    LuaDLL.HookLoadLibrary();
+                }
             }
 
             if (setting.isDeepLuaProfiler || setting.isCleanMode || !setting.isLocal)
@@ -97,7 +117,17 @@ namespace MikuLuaProfiler
                 go.AddComponent<HookLuaSetup>();
                 if (!setting.isLocal)
                 {
-                    NetWorkMgr.BeginListen("0.0.0.0", setting.port);
+                    {
+                        NetWorkMgr.BeginListen("0.0.0.0", setting.port);
+#if !UNITY_EDITOR
+                        while (!NetWorkMgr.CheckIsConnected())
+                        {
+                            Thread.Sleep(100);
+                        }
+#endif
+                    }
+
+
                 }
             }
         }
@@ -129,18 +159,6 @@ namespace MikuLuaProfiler
                 deltaTime = 0f;
             }
             LuaProfiler.SendFrameSample();
-            if (Input.touchCount == 4 || Input.GetKeyDown(KeyCode.Delete))
-            {
-                needShowMenu = !needShowMenu;
-                if (needShowMenu)
-                {
-                    Menu.EnableMenu(gameObject);
-                }
-                else
-                {
-                    Menu.DisableMenu();
-                }
-            }
         }
 
         private void OnApplicationQuit()
@@ -174,6 +192,40 @@ namespace MikuLuaProfiler
 #endif
     }
 
+    public class OpenMenu : MonoBehaviour
+    {
+        private bool needShowMenu = false;
+        private int count = 0;
+
+        private float recordTime = 0;
+        private float DELTA_TIME = 2;
+        private void LateUpdate()
+        {
+            if (Input.touchCount == 4 || Input.GetKeyDown(KeyCode.Delete))
+            {
+                count++;
+                if (count >= 5)
+                {
+                    count = 0;
+                    needShowMenu = !needShowMenu;
+                    if (needShowMenu)
+                    {
+                        Menu.EnableMenu(gameObject);
+                    }
+                    else
+                    {
+                        Menu.DisableMenu();
+                    }
+                }
+            }
+            if (Time.time - recordTime > DELTA_TIME)
+            {
+                count = 0;
+                recordTime = Time.time;
+            }
+        }
+    }
+
     public class Menu : MonoBehaviour
     {
         private static Menu m_menu;
@@ -199,19 +251,24 @@ namespace MikuLuaProfiler
         {
             var setting = HookLuaSetup.setting;
 
-            if (setting.discardInvalid)
+            if (GUI.Button(new Rect(0, 0, 200, 100), "Open Lua Profiler"))
             {
-                if (GUI.Button(new Rect(0, 220, 200, 100), "ShowAll"))
-                {
-                    setting.discardInvalid = false;
-                }
+                LuaProfiler.OpenServer();
             }
-            else
+            
+            if (GUI.Button(new Rect(220, 0, 200, 100), "Close Lua Profiler"))
             {
-                if (GUI.Button(new Rect(0, 220, 200, 100), "HideUseless"))
-                {
-                    setting.discardInvalid = true;
-                }
+                LuaProfiler.CloseServer();
+            }
+            
+            if (GUI.Button(new Rect(440, 0, 200, 100), "Hide Menu"))
+            {
+                enabled = false;
+            }
+            
+            if (GUI.Button(new Rect(0, 150, 200, 100), "Quit Game"))
+            {
+                Application.Quit();
             }
         }
     }
