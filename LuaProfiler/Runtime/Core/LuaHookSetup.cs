@@ -1119,7 +1119,8 @@ function miku_diff(record, staticRecord)
             -- 如果打开UI前的快照没有这个数据
             -- 但是打开UI后及关闭并释放UI后的快照都拥有这个数据，视为泄漏
             if not staticRecord[key] and key ~= staticRecord and key ~= cache_key  then
-                remain[key] = val
+                -- remain[key] = val
+                remain[key] = add[key]
             end
             add[key] = nil
         end
