@@ -14,16 +14,18 @@ namespace MikuLuaProfiler
         }
 
         private static readonly IntPtr RTLD_DEFAULT = IntPtr.Zero;
+        private static readonly int RTLD_NOW = 2;
 
-        [DllImport("libc.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("libc", CallingConvention = CallingConvention.Cdecl)]
         public static extern IntPtr dlsym(IntPtr handle, string symbol);
         
-        [DllImport("libc.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("libc", CallingConvention = CallingConvention.Cdecl)]
         public static extern IntPtr dlopen(string libfile, int flag);
 
         public IntPtr GetProcAddress(string InPath, string InProcName)
         {
-            return dlsym(RTLD_DEFAULT, InProcName);
+            var handle = dlopen(InPath, RTLD_NOW);
+            return dlsym(handle, InProcName);
         }
 
         public IntPtr GetProcAddressByHandle(IntPtr InModule, string InProcName)
@@ -38,7 +40,7 @@ namespace MikuLuaProfiler
         private static Action<IntPtr> _callBack;
         public void HookLoadLibrary(Action<IntPtr> callBack)
         {
-            IntPtr handle = GetProcAddress("", "dlopen");
+            IntPtr handle = GetProcAddress("libc.so", "dlopen");
             if (handle != IntPtr.Zero)
             {
                 // LoadLibraryExW is called by the other LoadLibrary functions, so we
@@ -47,9 +49,13 @@ namespace MikuLuaProfiler
                 dlopenfun f = dlopen_replace;
                 hooker.Init(handle, Marshal.GetFunctionPointerForDelegate(f));
                 hooker.Install();
-				
+
                 dlopenF = (dlopenfun)hooker.GetProxyFun(typeof(dlopenfun));
                 _callBack = callBack;
+            }
+            else
+            {
+                Debug.LogError("get dlopen addr fail");
             }
         }
 
